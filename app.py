@@ -11,8 +11,8 @@ import timm
 from collections import Counter
 import tempfile
 import shutil
-from typing import Optional
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from typing import Optional, Literal
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.responses import JSONResponse
 import uvicorn
 from pydantic import BaseModel
@@ -74,7 +74,8 @@ class PredictionResponse(BaseModel):
     predicted_text: Optional[str] = None
     error: Optional[str] = None
     processing_time: Optional[float] = None
-    session_id: Optional[str] = None  # Added session_id field
+    session_id: Optional[str] = None
+    sl_type: Optional[Literal["american_sl", "arabic_sl"]] = None
 
 class HealthResponse(BaseModel):
     status: str
@@ -275,16 +276,21 @@ async def health_check():
     )
 
 @app.post("/predict", response_model=PredictionResponse)
-async def predict_sign_language(file: UploadFile = File(...), session_id: Optional[str] = None):
+async def predict_sign_language(
+    file: UploadFile = File(...), 
+    sl_type: Literal["american_sl", "arabic_sl"] = Form(...),
+    session_id: Optional[str] = Form(None)
+):
     """
     Predict sign language from uploaded video file
     
     Args:
         file: Video file (mp4, avi, mov formats supported)
+        sl_type: Sign language type - either "american_sl" or "arabic_sl"
         session_id: Optional session identifier
     
     Returns:
-        PredictionResponse with predicted text and session_id
+        PredictionResponse with predicted text, sl_type, and session_id
     """
     import time
     start_time = time.time()
@@ -315,7 +321,8 @@ async def predict_sign_language(file: UploadFile = File(...), session_id: Option
             success=True,
             predicted_text=predicted_text,
             processing_time=processing_time,
-            session_id=session_id
+            session_id=session_id,
+            sl_type=sl_type
         )
         
     except Exception as e:
@@ -324,7 +331,8 @@ async def predict_sign_language(file: UploadFile = File(...), session_id: Option
             success=False,
             error=str(e),
             processing_time=time.time() - start_time,
-            session_id=session_id
+            session_id=session_id,
+            sl_type=sl_type
         )
     
     finally:
@@ -342,7 +350,7 @@ async def root():
         "version": "1.0.0",
         "endpoints": {
             "health": "/health",
-            "predict": "/predict (POST with video file)",
+            "predict": "/predict (POST with video file and sl_type)",
             "docs": "/docs"
         }
     }
